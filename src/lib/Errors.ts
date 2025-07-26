@@ -45,21 +45,6 @@ export abstract class IdempotencyError extends Error {
     }
 }
 
-export const E_WAIT_TIMEOUT = class extends IdempotencyError {
-
-    public constructor(
-        context: IErrorContext = {},
-        origin: unknown = null,
-    ) {
-        super(
-            'wait_timeout',
-            'Timeout during waiting for the completion of an idempotent operation.',
-            context,
-            origin,
-        );
-    }
-};
-
 export const E_STORAGE_FAILED = class extends IdempotencyError {
 
     public constructor(
@@ -75,15 +60,30 @@ export const E_STORAGE_FAILED = class extends IdempotencyError {
     }
 };
 
-export const E_OPERATION_EXPIRED = class extends IdempotencyError {
+export const E_OPERATION_PROCESSING = class extends IdempotencyError {
 
     public constructor(
         context: IErrorContext = {},
         origin: unknown = null,
     ) {
         super(
-            'operation_expired',
-            'The idempotent operation is expired and no longer valid.',
+            'operation_processing',
+            'The idempotent operation is currently being processed.',
+            context,
+            origin,
+        );
+    }
+};
+
+export const E_SERIALIZATION_FAILED = class extends IdempotencyError {
+
+    public constructor(
+        context: IErrorContext = {},
+        origin: unknown = null,
+    ) {
+        super(
+            'serialization_failed',
+            'Can not perform (de)serialization on the data.',
             context,
             origin,
         );

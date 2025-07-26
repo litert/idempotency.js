@@ -28,26 +28,43 @@ async function main() {
 
     const idemMgr = new LibIdempotency.IdempotencyManager({
         storageAdapter: new LibIdempotency.IdempotencyMemoryStorageAdapter(2000),
+        waitCallback: async (key, mgr) => {
+
+            while (true) {
+
+                const ret = await mgr.get(key);
+
+                await NodeTimers.setTimeout(50);
+
+                switch (ret?.status) {
+                    case LibIdempotency.EStatus.SUCCESS:
+                        return ret.result;
+                    case LibIdempotency.EStatus.FAILED:
+                        throw ret.result;
+                    default:
+                }
+            }
+        }
     });
 
-    const controller = new LibIdempotency.IdempotencyController({
+    const fnCreateOrder = new LibIdempotency.IdempotencyExecutor({
         manager: idemMgr,
         operation: createOrder,
     });
 
     const results = await Promise.all([
-        controller.execute('order-123', { item: 'book', quantity: 1 }),
-        controller.execute('order-123', { item: 'book', quantity: 1 }),
-        controller.execute('order-123', { item: 'book', quantity: 1 }),
+        fnCreateOrder.execute('order-123', { item: 'book', quantity: 1 }),
+        fnCreateOrder.execute('order-123', { item: 'book', quantity: 1 }),
+        fnCreateOrder.execute('order-123', { item: 'book', quantity: 1 }),
     ]);
-    // const result = await controller.execute('order-123', { item: 'book', quantity: 1 });
+    // const result = await fnCreateOrder.execute('order-123', { item: 'book', quantity: 1 });
 
     console.log('Operation result:', results);
-    console.log('Operation result:', await controller.execute('order-123', { item: 'book', quantity: 1 }));
+    console.log('Operation result:', await fnCreateOrder.execute('order-123', { item: 'book', quantity: 1 }));
 
     await NodeTimers.setTimeout(1000); // Wait for a while to see the results    
 
-    console.log('Final operation result:', await controller.execute('order-123', { item: 'book', quantity: 1 }));
+    console.log('Final operation result:', await fnCreateOrder.execute('order-123', { item: 'book', quantity: 1 }));
 }
 
 main().catch(console.error);

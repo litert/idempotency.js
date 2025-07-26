@@ -26,9 +26,15 @@ interface IRecordInfo extends dL.IStoredRecord {
  *
  * This adapter stores records in memory and supports the TTL (Time To Live)
  * feature, but it does not persist data across application restarts.
- * It is suitable for testing and development purposes.
+ *
+ * It is only for testing and development purposes.
  * For production use, consider using a persistent storage solution, like
  * Redis or a database (MongoDB, MySQL, PgSQL, or others).
+ *
+ * However, if you insist on using this in production, please ensure that
+ * you have sufficient memory and that the application is designed to handle
+ * potential data loss on restarts. Besides, you must create a timer to
+ * periodically call the `gc` method to clean up expired records.
  */
 export class IdempotencyMemoryStorageAdapter implements dL.IStorageAdapter {
 
@@ -36,14 +42,15 @@ export class IdempotencyMemoryStorageAdapter implements dL.IStorageAdapter {
 
     private readonly _ttlMs: number;
 
-    public constructor(ttlMs: number = 60000) {
+    public constructor(ttlMs: number) {
 
         this._ttlMs = ttlMs;
     }
 
     public create(data: dL.IStoredRecord): Promise<boolean> {
 
-        if (this._records[data.key]) {
+        if ((this._records[data.key]?.validUntil ?? 0) > Date.now()) {
+
             return Promise.resolve(false); // Record already exists
         }
 
@@ -51,6 +58,7 @@ export class IdempotencyMemoryStorageAdapter implements dL.IStorageAdapter {
             ...data,
             validUntil: Date.now() + this._ttlMs,
         };
+
         return Promise.resolve(true);
     }
 
@@ -78,24 +86,11 @@ export class IdempotencyMemoryStorageAdapter implements dL.IStorageAdapter {
 
     public update(data: dL.IStoredRecord): Promise<void> {
 
-        const record = this._records[data.key];
-
-        if (!record) {
-
-            return Promise.resolve();
-        }
-
-        if (record.validUntil < Date.now()) {
-
-            delete this._records[data.key];
-            return Promise.resolve();
-        }
-
-        // Update the record with new data
         this._records[data.key] = {
-            ...record,
+            'key': data.key,
             'status': data.status,
             'result': data.result,
+            'validUntil': Date.now() + this._ttlMs,
         };
 
         return Promise.resolve();

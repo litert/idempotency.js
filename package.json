@@ -12,7 +12,7 @@
     "build-md-doc": "./utils/generate-api-docs-md.sh",
     "build-html-doc": "./utils/generate-api-docs-html.sh",
     "rebuild": "npm run clean && npm run lint && npm run build",
-    "test": "node --enable-source-maps --test --experimental-test-coverage lib/*.test.js cli/*.test.js",
+    "test": "node --enable-source-maps --test --experimental-test-coverage lib/*.test.js lib/**/*.test.js cli/*.test.js",
     "clean": "rm -rf lib examples",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "./utils/eslint.sh",

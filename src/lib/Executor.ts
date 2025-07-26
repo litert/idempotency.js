@@ -16,23 +16,28 @@
 
 import * as dL from './Types';
 
+const DEFAULT_IS_FAILURE_STORABLE = (): boolean => true;
+
 /**
- * The controller for each type of idempotent operation.
+ * The executor for a kind of idempotent operation.
  * It wraps the operation and manages the idempotency records.
  */
-export class IdempotencyController<
+export class IdempotencyExecutor<
     TArgs extends unknown[],
     TResult,
     TError = Error
-> implements dL.IController<TArgs, TResult> {
+> implements dL.IExecutor<TArgs, TResult> {
 
     private readonly _callback: dL.IOperationCallback<TArgs, TResult>;
 
     private readonly _manager: dL.IManager<TResult, TError>;
 
-    public constructor(options: dL.IControllerOptions<TArgs, TResult, TError>) {
+    private readonly _isFailureStorable: dL.ICheckFailureStorable<TError>;
+
+    public constructor(options: dL.IExecutorOptions<TArgs, TResult, TError>) {
         this._manager = options.manager;
         this._callback = options.operation;
+        this._isFailureStorable = options.isFailureStorable ?? DEFAULT_IS_FAILURE_STORABLE;
     }
 
     /**
@@ -67,14 +72,30 @@ export class IdempotencyController<
         try {
             // Execute the operation
             const result = await this._callback(...args);
-            // Mark the operation as successful
+
+            // Save the successful result
             await this._manager.success(key, result);
+
             return result;
         }
         catch (error) {
-            // Mark the operation as failed
-            await this._manager.fail(key, error as TError);
+
+            if (this._isFailureStorable(error as TError)) {
+
+                // Save the error
+                await this._manager.fail(key, error as TError);
+            }
+
             throw error;
         }
+    }
+
+    public static wrap<TArgs extends unknown[], TResult, TError = Error>(
+        options: dL.IExecutorOptions<TArgs, TResult, TError>
+    ): (key: string, ...args: TArgs) => Promise<TResult> {
+
+        const executor = new IdempotencyExecutor<TArgs, TResult, TError>(options);
+
+        return executor.execute.bind(executor);
     }
 }

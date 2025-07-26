@@ -15,10 +15,10 @@
  */
 
 export * from './Types';
-export * from './Controller';
+export * from './Executor';
 export * from './Manager';
 export * from './Errors';
-export * from './DefaultFailureSerializer';
-export * from './DefaultSuccessSerializer';
-export * from './DefaultWaitCallback';
+export * from './Serializers/DefaultFailureSerializer';
+export * from './Serializers/DefaultSuccessSerializer';
+export * from './Serializers/JsonSerializer';
 export * from './MemoryStorageAdapter';

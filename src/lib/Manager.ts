@@ -14,11 +14,15 @@
  * limitations under the License.
  */
 
-import { DefaultFailureSerializer } from './DefaultFailureSerializer';
-import { DefaultSuccessSerializer } from './DefaultSuccessSerializer';
-import { createDefaultWaitCallback } from './DefaultWaitCallback';
+import { DefaultFailureSerializer } from './Serializers/DefaultFailureSerializer';
+import { DefaultSuccessSerializer } from './Serializers/DefaultSuccessSerializer';
 import * as dL from './Types';
 import * as eL from './Errors';
+
+export const DEFAULT_WAIT_CALLBACK: dL.IWaitCallback<any, any> = (key) => {
+
+    return Promise.reject(new eL.E_OPERATION_PROCESSING({ key }));
+};
 
 /**
  * The manager of idempotency records, responsible for creating, retrieving, and updating records.
@@ -38,10 +42,7 @@ export class IdempotencyManager<TData, TError = Error> implements dL.IManager<TD
         this._storageAdapter = options.storageAdapter;
         this._successSerializer = options.successSerializer ?? new DefaultSuccessSerializer();
         this._failureSerializer = options.failureSerializer ?? new DefaultFailureSerializer() as dL.ISerializer<TError>;
-        this._waitCallback = options.waitCallback ?? createDefaultWaitCallback({
-            timeoutMs: 30000, // Default timeout of 30 seconds
-            retryIntervalMs: 1000 // Default retry interval of 1 second
-        });
+        this._waitCallback = options.waitCallback ?? DEFAULT_WAIT_CALLBACK;
     }
 
     public async get(key: string): Promise<dL.IRecord<TData, TError> | null> {
@@ -81,6 +82,7 @@ export class IdempotencyManager<TData, TError = Error> implements dL.IManager<TD
     public async initiate(key: string): Promise<boolean> {
 
         try {
+
             return await this._storageAdapter.create({
                 key: key,
                 status: dL.EStatus.PENDING,
@@ -130,7 +132,6 @@ export class IdempotencyManager<TData, TError = Error> implements dL.IManager<TD
 
     public wait(key: string): Promise<TData> {
 
-        return this._waitCallback(() => this.get(key), key);
+        return this._waitCallback(key, this);
     }
-
 }

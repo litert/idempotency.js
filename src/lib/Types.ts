@@ -128,10 +128,22 @@ export interface ISerializer<T> {
 /**
  * The signature of the callbacks used to wait for the completion of an operation.
  */
-export type IWaitCallback<TData, TError> = (
-    read: () => Promise<IRecord<TData, TError> | null>,
-    key: string,
-) => Promise<TData>;
+export interface IWaitCallback<TData, TError> {
+
+    /**
+     * The signature of the callbacks used to wait for the completion of an operation.
+     *
+     * @param key The unique key for this operation, used to ensure idempotency.
+     * @param manager The manager object used to manage idempotency records.
+     *
+     * @returns A promise that resolves to the completed idempotency record.
+     */
+    // eslint-disable-next-line @typescript-eslint/prefer-function-type
+    (
+        key: string,
+        manager: IManager<TData, TError>,
+    ): Promise<TData>;
+}
 
 /**
  * The options for the idempotency manager.
@@ -161,11 +173,7 @@ export interface IManagerOptions<TData, TError = Error> {
      * The callback to wait for the completion of an operation, if an idempotency record is pending.
      *
      * You can implement this to handle cases where you want to create a custom waiting mechanism.
-     *
-     * @param read A callback function that tries to read the idempotency record, returning null if it does not exist.
-     * @param key The unique key for this operation, used to ensure idempotency.
-     *
-     * @returns A promise that resolves to the completed idempotency record.
+     * Or just throw an error if you do not want to wait, enforcing the requester to retry.
      */
     waitCallback?: IWaitCallback<TData, TError>;
 }
@@ -194,7 +202,8 @@ export interface IManager<TData, TError = Error> {
     initiate(key: string): Promise<boolean>;
 
     /**
-     * When an operation is successful, this method should be called to mark the operation as successful.
+     * When an operation is successful, this method should be called to mark the operation as successful,
+     * and save the result of the operation into the idempotency record.
      *
      * @param key The unique key for this operation, used to ensure idempotency.
      * @param result The result of the successful operation.
@@ -202,7 +211,8 @@ export interface IManager<TData, TError = Error> {
     success(key: string, result: TData): Promise<void>;
 
     /**
-     * When an operation fails, this method should be called to mark the operation as failed.
+     * When an operation fails, this method should be called to mark the operation as failed,
+     * and save the error into the idempotency record.
      *
      * @param key The unique key for this operation, used to ensure idempotency.
      * @param error The error that caused the operation to fail.
@@ -222,12 +232,20 @@ export interface IManager<TData, TError = Error> {
     wait(key: string): Promise<TData>;
 }
 
+/**
+ * The signature of the operation callback needs to be wrapped by the executor.
+ */
 export type IOperationCallback<TArgs extends unknown[], TResult> = (...args: TArgs) => Promise<TResult> | TResult;
 
 /**
- * The options for the controllers with idempotency protection.
+ * The signature of the function to check if a failure result should be stored.
  */
-export interface IControllerOptions<TArgs extends unknown[], TResult, TError = Error> {
+export type ICheckFailureStorable<TError> = (result: TError) => boolean;
+
+/**
+ * The options for the executors with idempotency protection.
+ */
+export interface IExecutorOptions<TArgs extends unknown[], TResult, TError = Error> {
 
     /**
      * The storage adapter for managing idempotency records
@@ -238,9 +256,23 @@ export interface IControllerOptions<TArgs extends unknown[], TResult, TError = E
      * The actual operation to be executed with idempotency protection
      */
     operation: IOperationCallback<TArgs, TResult>;
+
+    /**
+     * An optional function to determine if a failure result should be stored.
+     *
+     * @param result    The result of the operation, which can be either a successful result or an error.
+     *
+     * @returns  `true` if the failure result should be stored, `false` otherwise.
+     *
+     * @default () => true // Store all failure results by default
+     */
+    isFailureStorable?: ICheckFailureStorable<TError>;
 }
 
-export interface IController<TArgs extends unknown[], TResult> {
+/**
+ * The executor providing idempotency protection for operations.
+ */
+export interface IExecutor<TArgs extends unknown[], TResult> {
 
     /**
      * Execute an operation with idempotency protection.

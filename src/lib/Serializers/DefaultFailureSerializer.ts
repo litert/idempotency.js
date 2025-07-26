@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-import type * as dL from './Types';
+import type * as dL from '../Types';
 
 /**
  * The default serializer for all failure results, based on class `Error`.
+ *
+ * For all other errors not inheriting from `Error`, it will serialize them as
+ * an `UnknownError` with a generic message.
  */
 export class DefaultFailureSerializer implements dL.ISerializer<Error> {
 

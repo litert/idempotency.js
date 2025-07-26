@@ -14,18 +14,33 @@
  * limitations under the License.
  */
 
-import type * as dL from './Types';
+import type * as dL from '../Types';
+import * as eL from '../Errors';
 
 /**
- * The default serializer for successful results, using `JSON.stringify` and `JSON.parse`.
+ * The serializer for successful results, using `JSON.stringify` and `JSON.parse`.
  */
-export class DefaultSuccessSerializer implements dL.ISerializer<any> {
+export class JsonSerializer implements dL.ISerializer<any> {
 
     public serialize(data: unknown): string {
-        return JSON.stringify(data);
+
+        try {
+            return JSON.stringify(data);
+        }
+        catch (e) {
+
+            throw new eL.E_SERIALIZATION_FAILED({ type: typeof data }, e);
+        }
     }
 
     public deserialize(data: string | Buffer): any {
-        return JSON.parse(data.toString());
+
+        try {
+            return JSON.parse(data as string); // Convert Buffer to string explicitly is unnecessary here
+        }
+        catch (e) {
+
+            throw new eL.E_SERIALIZATION_FAILED({}, e);
+        }
     }
 }
