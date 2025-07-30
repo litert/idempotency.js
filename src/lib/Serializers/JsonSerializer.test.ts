@@ -65,7 +65,6 @@ NodeTest.describe('JsonSerializer', () => {
         for (const badValue of [
             BigInt(123),
         ]) {
-            console.log(badValue);
             NodeAssert.throws(() => {
                 obj.serialize(badValue);
             }, {

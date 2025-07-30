@@ -54,7 +54,7 @@ export interface IStorageAdapter {
      *
      * @param data The idempotency record to update.
      */
-    update(data: IStoredRecord): Promise<void>;
+    update(data: Omit<IStoredRecord, 'context'>): Promise<void>;
 }
 
 /**
@@ -79,9 +79,18 @@ export enum EStatus {
 }
 
 /**
+ * The context of an idempotency record, which can be used to store additional
+ * information about the operation.
+ *
+ * This is a flexible object that can contain any additional data related to the
+ * operation, such as timestamps, user IDs, or any other relevant information.
+ */
+export type IRecordContext = Record<string, unknown>;
+
+/**
  * The idempotency record interface.
  */
-export interface IRecord<TData, TError> {
+export interface IRecord<TResult, TError> {
 
     /**
      * The key that uniquely identifies this idempotency record.
@@ -96,13 +105,19 @@ export interface IRecord<TData, TError> {
     status: EStatus;
 
     /**
+     * The context of the operation, which can be used to store additional
+     * information about the operation.
+     */
+    context: IRecordContext;
+
+    /**
      * The result of the operation.
      * When the status is SUCCESS, this will contain the successful result.
      * When the status is FAILED, this will contain the error that caused the
      * operation to fail.
      * If the status is PENDING, this does not exist.
      */
-    result?: TData | TError;
+    result?: TResult | TError;
 }
 
 /**
@@ -195,11 +210,13 @@ export interface IManager<TData, TError = Error> {
     /**
      * Initiate a new idempotency record.
      *
-     * @param key  The unique key for this operation, used to ensure idempotency.
+     * @param key     The unique key for this operation, used to ensure idempotency.
+     * @param context Optional context for the record, which can be used to store
+     *                additional information about the operation.
      *
      * @returns A promise that resolves to true if the record was created, false if it already exists.
      */
-    initiate(key: string): Promise<boolean>;
+    initiate(key: string, context?: IRecordContext): Promise<boolean>;
 
     /**
      * When an operation is successful, this method should be called to mark the operation as successful,
@@ -243,6 +260,36 @@ export type IOperationCallback<TArgs extends unknown[], TResult> = (...args: TAr
 export type ICheckFailureStorable<TError> = (result: TError) => boolean;
 
 /**
+ * The hook callback for executors, which will be executed before waiting for
+ * the operation to complete, when an idempotency record is pending.
+ */
+export interface IExecutionBeforeWaitCallback<TArgs extends unknown[], TResult, TError> {
+
+    /**
+     * @param record The idempotency record, or `null` if no such a record of the key exists.
+     * @param args The arguments to pass to the execution.
+     */
+    // eslint-disable-next-line @typescript-eslint/prefer-function-type
+    (
+        record: IRecord<TResult, TError>,
+        ...args: TArgs
+    ): void;
+}
+
+/**
+ * The function to create a context for the idempotency record.
+ */
+export interface ICreateContext<TArgs extends unknown[]> {
+
+    /**
+     * @param record The idempotency record, or `null` if no such a record of the key exists.
+     * @param args The arguments to pass to the execution.
+     */
+    // eslint-disable-next-line @typescript-eslint/prefer-function-type
+    (...args: TArgs): IRecordContext;
+}
+
+/**
  * The options for the executors with idempotency protection.
  */
 export interface IExecutorOptions<TArgs extends unknown[], TResult, TError = Error> {
@@ -267,6 +314,23 @@ export interface IExecutorOptions<TArgs extends unknown[], TResult, TError = Err
      * @default () => true // Store all failure results by default
      */
     isFailureStorable?: ICheckFailureStorable<TError>;
+
+    /**
+     * An optional function to create a context for the idempotency record.
+     *
+     * @default () => ({})
+     */
+    createContext?: ICreateContext<TArgs>;
+
+    /**
+     * An optional function to be called before waiting for an idempotency record to complete.
+     *
+     * This is especially useful when the operation is already in progress, and you want to perform
+     * some actions (e.g. check if the args are the same as the previous call) before waiting.
+     *
+     * @default () => {} // do nothing by default
+     */
+    beforeWaiting?: IExecutionBeforeWaitCallback<TArgs, TResult, TError>;
 }
 
 /**

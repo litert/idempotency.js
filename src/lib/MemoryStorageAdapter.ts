@@ -81,12 +81,14 @@ export class IdempotencyMemoryStorageAdapter implements dL.IStorageAdapter {
             'key': record.key,
             'status': record.status,
             'result': record.result,
+            'context': record.context,
         });
     }
 
-    public update(data: dL.IStoredRecord): Promise<void> {
+    public update(data: Omit<dL.IStoredRecord, 'context'>): Promise<void> {
 
         this._records[data.key] = {
+            ...this._records[data.key],
             'key': data.key,
             'status': data.status,
             'result': data.result,

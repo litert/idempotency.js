@@ -15,56 +15,35 @@
  */
 
 import * as LibIdempotency from '../lib';
-import * as NodeTimers from 'node:timers/promises';
-
-async function createOrder(data: unknown) {
-
-    await NodeTimers.setTimeout(1000); // Simulate a delay
-    console.log('Order created:', data);
-    return { orderId: '12345', status: 'created', r: Math.random().toString() };
-}
 
 async function main() {
 
-    const idemMgr = new LibIdempotency.IdempotencyManager({
-        storageAdapter: new LibIdempotency.IdempotencyMemoryStorageAdapter(2000),
-        waitCallback: async (key, mgr) => {
+    const storage = new LibIdempotency.IdempotencyMemoryStorageAdapter(3600_000);
 
-            while (true) {
+    const manager = new LibIdempotency.IdempotencyManager<{ v: number; }>({
+        storageAdapter: storage,
+        // successSerializer: new LibIdempotency.DefaultSuccessSerializer(),
+        // failureSerializer: new LibIdempotency.DefaultFailureSerializer(),
+    });
 
-                const ret = await mgr.get(key);
+    let execs = 0;
 
-                await NodeTimers.setTimeout(50);
+    const executor = new LibIdempotency.IdempotencyExecutor<[{ val: number; }], { v: number; }>({
+        manager,
+        operation: async (data) => {
 
-                switch (ret?.status) {
-                    case LibIdempotency.EStatus.SUCCESS:
-                        return ret.result;
-                    case LibIdempotency.EStatus.FAILED:
-                        throw ret.result;
-                    default:
-                }
-            }
+            // do something with the data
+            console.log('Processing data:', data);
+            execs++;
+            return { v: data.val * 10 };
         }
     });
 
-    const fnCreateOrder = new LibIdempotency.IdempotencyExecutor({
-        manager: idemMgr,
-        operation: createOrder,
-    });
+    console.log(await executor.execute('key1', { val: 1 }));
+    console.log(await executor.execute('key1', { val: 2 }));
+    console.log(await executor.execute('key2', { val: 3 }));
 
-    const results = await Promise.all([
-        fnCreateOrder.execute('order-123', { item: 'book', quantity: 1 }),
-        fnCreateOrder.execute('order-123', { item: 'book', quantity: 1 }),
-        fnCreateOrder.execute('order-123', { item: 'book', quantity: 1 }),
-    ]);
-    // const result = await fnCreateOrder.execute('order-123', { item: 'book', quantity: 1 });
-
-    console.log('Operation result:', results);
-    console.log('Operation result:', await fnCreateOrder.execute('order-123', { item: 'book', quantity: 1 }));
-
-    await NodeTimers.setTimeout(1000); // Wait for a while to see the results    
-
-    console.log('Final operation result:', await fnCreateOrder.execute('order-123', { item: 'book', quantity: 1 }));
+    console.log(`The operation has been executed ${execs} times.`);
 }
 
 main().catch(console.error);

@@ -130,4 +130,117 @@ NodeTest.describe('IdempotencyExecutor', async () => {
 
         })();
     });
+
+    await NodeTest.it('Custom context creator and retry hook should work', async (ctx) => {
+
+        const storage = new IdempotencyMemoryStorageAdapter(1000);
+
+        const mgr = new IdempotencyManager<number, string>({
+            storageAdapter: storage,
+            waitCallback: async (key, mgr) => {
+
+                while (true) {
+
+                    const ret = await mgr.get(key);
+
+                    await NodeTimers.setTimeout(1);
+
+                    switch (ret?.status) {
+                        case EStatus.SUCCESS:
+                            return ret.result as number;
+                        case EStatus.FAILED:
+                            throw ret.result;
+                        default:
+                            continue;
+                    }
+                }
+            }
+        });
+
+        const fn = IdempotencyExecutor.wrap({
+            manager: mgr,
+            operation: async (v: number) => {
+                if (v > 1000) {
+                    throw new Error(`Data too large: ${v}`);
+                }
+                if (v < 0) {
+
+                    await NodeTimers.setTimeout(100);
+                    return v - 1;
+                }
+                return v + 1;
+            },
+            createContext: (v) => ({ args: v }),
+            beforeWaiting: (record, v) => {
+                if (record.context.args !== v) {
+                    throw new Error(`Context args mismatch: expected ${v}, got ${record.context.args}`);
+                }
+            },
+        });
+
+        // try successful executions sequently, with the same key but different args
+        NodeAssert.strictEqual(
+            await fn('key-1', 21),
+            22
+        );
+
+        try {
+
+            await fn('key-1', 123);
+            NodeAssert.fail('Should have thrown an error due to context mismatch');
+        }
+        catch (error) {
+            NodeAssert.ok(error instanceof Error);
+            NodeAssert.strictEqual(error.message, 'Context args mismatch: expected 123, got 21');
+        }
+
+        // try failed executions sequently, with the same key but different args
+        try {
+
+            await fn('key-2', 12345);
+            NodeAssert.fail('Should have thrown an error due to context mismatch');
+        }
+        catch (error) {
+            NodeAssert.ok(error instanceof Error);
+            NodeAssert.strictEqual(error.message, 'Data too large: 12345');
+        }
+
+        try {
+
+            await fn('key-2', 123);
+            NodeAssert.fail('Should have thrown an error due to context mismatch');
+        }
+        catch (error) {
+            NodeAssert.ok(error instanceof Error);
+            NodeAssert.strictEqual(error.message, 'Context args mismatch: expected 123, got 12345');
+        }
+
+        // try pending execution sequently, with the same key but different args
+        const [result1, result2] = await Promise.allSettled([
+            fn('key-3', -1),
+            (async () => {
+                await NodeTimers.setTimeout(2);
+                return fn('key-3', -2);
+            })(),
+        ]);
+
+        NodeAssert.strictEqual(result1.status, 'fulfilled');
+        NodeAssert.strictEqual(result1.value, -2);
+        NodeAssert.strictEqual(result2.status, 'rejected');
+        NodeAssert.ok(result2.reason instanceof Error);
+        NodeAssert.strictEqual(result2.reason.message, 'Context args mismatch: expected -2, got -1');
+
+        // try pending execution parallel, with the same key but different args
+        const [result3, result4] = await Promise.allSettled([
+            fn('key-4', -1),
+            fn('key-4', -2),
+        ]);
+
+        NodeAssert.strictEqual(result3.status, 'fulfilled');
+        NodeAssert.strictEqual(result3.value, -2);
+        NodeAssert.strictEqual(result4.status, 'rejected');
+
+        NodeAssert.ok(result4.reason instanceof Error);
+        NodeAssert.strictEqual(result4.reason.message, 'Context args mismatch: expected -2, got -1');
+    });
 });

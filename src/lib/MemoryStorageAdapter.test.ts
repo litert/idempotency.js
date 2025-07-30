@@ -11,12 +11,13 @@ NodeTest.describe('MemoryStorageAdapter', async () => {
 
         NodeAssert.strictEqual(await store.get('hello-world'), null);
 
-        await store.create({ key: 'hello-world', status: EStatus.PENDING });
+        await store.create({ key: 'hello-world', status: EStatus.PENDING, context: { a: 123 } });
 
         NodeAssert.deepStrictEqual(await store.get('hello-world'), {
             key: 'hello-world',
             status: EStatus.PENDING,
             result: undefined,
+            context: { a: 123 },
         });
     });
 
@@ -26,12 +27,16 @@ NodeTest.describe('MemoryStorageAdapter', async () => {
 
         const store = new IdempotencyMemoryStorageAdapter(100);
 
-        NodeAssert.strictEqual(await store.create({ key: 'hello-world', status: EStatus.PENDING }), true);
+        NodeAssert.strictEqual(
+            await store.create({ key: 'hello-world', status: EStatus.PENDING, context: { a: 123 } }),
+            true,
+        );
 
         NodeAssert.deepStrictEqual(await store.get('hello-world'), {
             key: 'hello-world',
             status: EStatus.PENDING,
             result: undefined,
+            context: { a: 123 },
         });
 
         ctx.mock.timers.tick(1000);
@@ -43,15 +48,24 @@ NodeTest.describe('MemoryStorageAdapter', async () => {
 
         const store = new IdempotencyMemoryStorageAdapter(1000);
 
-        NodeAssert.strictEqual(await store.create({ key: 'hello-world', status: EStatus.PENDING }), true);
+        NodeAssert.strictEqual(
+            await store.create({ key: 'hello-world', status: EStatus.PENDING, context: {} }),
+            true
+        );
     });
 
     await NodeTest.it('Method "create" should return false if a record already exists', async () => {
 
         const store = new IdempotencyMemoryStorageAdapter(1000);
 
-        NodeAssert.strictEqual(await store.create({ key: 'hello-world', status: EStatus.PENDING }), true);
-        NodeAssert.strictEqual(await store.create({ key: 'hello-world', status: EStatus.PENDING }), false);
+        NodeAssert.strictEqual(
+            await store.create({ key: 'hello-world', status: EStatus.PENDING, context: {} }),
+            true
+        );
+        NodeAssert.strictEqual(
+            await store.create({ key: 'hello-world', status: EStatus.PENDING, context: {} }),
+            false
+        );
     });
 
     await NodeTest.it('Method "create" should return true if a record exists but expired', async (ctx) => {
@@ -60,18 +74,27 @@ NodeTest.describe('MemoryStorageAdapter', async () => {
 
         const store = new IdempotencyMemoryStorageAdapter(100);
 
-        NodeAssert.strictEqual(await store.create({ key: 'hello-world', status: EStatus.PENDING }), true);
+        NodeAssert.strictEqual(
+            await store.create({ key: 'hello-world', status: EStatus.PENDING, context: {} }),
+            true
+        );
 
         ctx.mock.timers.tick(1000);
 
-        NodeAssert.strictEqual(await store.create({ key: 'hello-world', status: EStatus.PENDING }), true);
+        NodeAssert.strictEqual(
+            await store.create({ key: 'hello-world', status: EStatus.PENDING, context: {} }),
+            true
+        );
     });
 
     await NodeTest.it('Method "update" should update the record', async () => {
 
         const store = new IdempotencyMemoryStorageAdapter(1000);
 
-        NodeAssert.strictEqual(await store.create({ key: 'hello-world', status: EStatus.PENDING }), true);
+        NodeAssert.strictEqual(
+            await store.create({ key: 'hello-world', status: EStatus.PENDING, context: {} }),
+            true
+        );
 
         await store.update({ key: 'hello-world', status: EStatus.SUCCESS, result: 'Hello, World!' });
 
@@ -79,6 +102,7 @@ NodeTest.describe('MemoryStorageAdapter', async () => {
             key: 'hello-world',
             status: EStatus.SUCCESS,
             result: 'Hello, World!',
+            context: {},
         });
 
         await store.update({ key: 'hello-world', status: EStatus.FAILED, result: 'Error occurred' });
@@ -87,6 +111,7 @@ NodeTest.describe('MemoryStorageAdapter', async () => {
             key: 'hello-world',
             status: EStatus.FAILED,
             result: 'Error occurred',
+            context: {},
         });
     });
 
@@ -96,12 +121,16 @@ NodeTest.describe('MemoryStorageAdapter', async () => {
 
         const store = new IdempotencyMemoryStorageAdapter(100);
 
-        NodeAssert.strictEqual(await store.create({ key: 'hello-world', status: EStatus.PENDING }), true);
+        NodeAssert.strictEqual(
+            await store.create({ key: 'hello-world', status: EStatus.PENDING, context: {} }),
+            true
+        );
 
         NodeAssert.deepStrictEqual(await store.get('hello-world'), {
             key: 'hello-world',
             status: EStatus.PENDING,
             result: undefined,
+            context: {},
         });
 
         ctx.mock.timers.tick(1000);

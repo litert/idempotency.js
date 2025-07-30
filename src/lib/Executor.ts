@@ -18,6 +18,8 @@ import * as dL from './Types';
 
 const DEFAULT_IS_FAILURE_STORABLE = (): boolean => true;
 
+const DEFAULT_CONTEXT_FACTORY: dL.ICreateContext<any> = () => ({});
+
 /**
  * The executor for a kind of idempotent operation.
  * It wraps the operation and manages the idempotency records.
@@ -34,10 +36,16 @@ export class IdempotencyExecutor<
 
     private readonly _isFailureStorable: dL.ICheckFailureStorable<TError>;
 
+    private readonly _hookOnRetry?: dL.IExecutionBeforeWaitCallback<TArgs, TResult, TError>;
+
+    private readonly _createContext: dL.ICreateContext<TArgs>;
+
     public constructor(options: dL.IExecutorOptions<TArgs, TResult, TError>) {
         this._manager = options.manager;
         this._callback = options.operation;
         this._isFailureStorable = options.isFailureStorable ?? DEFAULT_IS_FAILURE_STORABLE;
+        this._hookOnRetry = options.beforeWaiting;
+        this._createContext = options.createContext ?? DEFAULT_CONTEXT_FACTORY;
     }
 
     /**
@@ -51,25 +59,31 @@ export class IdempotencyExecutor<
 
         if (existingRecord) {
 
+            this._hookOnRetry?.(existingRecord, ...args);
+
             switch (existingRecord.status) {
                 case dL.EStatus.SUCCESS:
                     return existingRecord.result as TResult;
                 case dL.EStatus.FAILED:
                     throw existingRecord.result as TError;
                 case dL.EStatus.PENDING:
-                    // Wait for the operation to complete
                     return this._manager.wait(key);
             }
         }
 
+        const context = this._createContext(...args);
+
         // Create a new idempotency record
-        if (!await this._manager.initiate(key)) {
+        if (!await this._manager.initiate(key, context)) {
+
+            this._hookOnRetry?.((await this._manager.get(key))!, ...args);
 
             // if the record already exists, wait for it to complete
             return this._manager.wait(key);
         }
 
         try {
+
             // Execute the operation
             const result = await this._callback(...args);
 

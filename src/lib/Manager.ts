@@ -56,18 +56,21 @@ export class IdempotencyManager<TData, TError = Error> implements dL.IManager<TD
                     return {
                         key: ret.key,
                         status: dL.EStatus.SUCCESS,
-                        result: this._successSerializer.deserialize(ret.result!)
+                        result: this._successSerializer.deserialize(ret.result!),
+                        context: ret.context,
                     } as dL.IRecord<TData, TError>;
                 case dL.EStatus.FAILED:
                     return {
                         key: ret.key,
                         status: dL.EStatus.FAILED,
-                        result: this._failureSerializer.deserialize(ret.result!)
+                        result: this._failureSerializer.deserialize(ret.result!),
+                        context: ret.context,
                     } as dL.IRecord<TData, TError>;
                 case dL.EStatus.PENDING:
                     return {
                         key: ret.key,
-                        status: dL.EStatus.PENDING
+                        status: dL.EStatus.PENDING,
+                        context: ret.context,
                     } as dL.IRecord<TData, TError>;
                 default:
                     return null;
@@ -79,13 +82,14 @@ export class IdempotencyManager<TData, TError = Error> implements dL.IManager<TD
         }
     }
 
-    public async initiate(key: string): Promise<boolean> {
+    public async initiate(key: string, context: dL.IRecordContext = {}): Promise<boolean> {
 
         try {
 
             return await this._storageAdapter.create({
                 key: key,
                 status: dL.EStatus.PENDING,
+                context: context,
             });
         }
         catch (error) {

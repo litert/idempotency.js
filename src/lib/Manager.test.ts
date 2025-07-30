@@ -42,11 +42,13 @@ NodeTest.describe('IdempotencyManager', async () => {
         NodeAssert.deepStrictEqual(await mgr.get(key), {
             key: key,
             status: EStatus.PENDING,
+            context: {},
         });
 
         NodeAssert.deepStrictEqual(await mgr.get(key2), {
             key: key2,
             status: EStatus.PENDING,
+            context: {},
         });
     });
 
@@ -92,6 +94,7 @@ NodeTest.describe('IdempotencyManager', async () => {
             key: key,
             status: EStatus.FAILED,
             result: '123',
+            context: {},
         });
 
         await mgr.fail(key2, '2');
@@ -100,6 +103,7 @@ NodeTest.describe('IdempotencyManager', async () => {
             key: key2,
             status: EStatus.FAILED,
             result: '2',
+            context: {},
         });
     });
 
@@ -128,6 +132,7 @@ NodeTest.describe('IdempotencyManager', async () => {
             key: key,
             status: EStatus.SUCCESS,
             result: 1234,
+            context: {},
         });
 
         await mgr.success(key2, 2333);
@@ -136,6 +141,7 @@ NodeTest.describe('IdempotencyManager', async () => {
             key: key2,
             status: EStatus.SUCCESS,
             result: 2333,
+            context: {},
         });
     });
 
