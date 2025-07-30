@@ -18,6 +18,7 @@ export default defineConfig({
         text: 'Guides',
         items: [
           { text: 'Quick Start', link: '/guides/quick-start' },
+          { text: 'Using the manager', link: '/guides/using-the-manager' },
         ]
       },
       {
